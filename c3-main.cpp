@@ -27,13 +27,13 @@ using namespace std;
 #include <pcl/io/pcd_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/voxel_grid.h>
-#include "helper.h"
 #include <sstream>
 #include <chrono> 
 #include <ctime> 
 #include <pcl/registration/icp.h>
 #include <pcl/registration/ndt.h>
 #include <pcl/console/time.h>   // TicToc
+#include "scanmatcher_icp.h"
 
 PointCloudT pclCloud;
 cc::Vehicle::Control control;
@@ -201,15 +201,27 @@ int main(){
 			
 			new_scan = true;
 			// TODO: (Filter scan using voxel filter)
+          	pcl::VoxelGrid<PointT> vg;
+			vg.setInputCloud(scanCloud);
+            double filterRes = 1.0;
+            vg.setLeafSize(filterRes, filterRes, filterRes);
+            typename pcl::PointCloud<PointT>::Ptr cloudFiltered (new pcl::PointCloud<PointT>);
+            vg.filter(*cloudFiltered);
 
 			// TODO: Find pose transform by using ICP or NDT matching
+          	Eigen::Matrix4d transform = transform3D(pose.rotation.yaw, pose.rotation.pitch, pose.rotation.roll, pose.position.x, pose.position.y, pose.position.z);
+          	
+          	transform = ICP(mapCloud, cloudFiltered, pose, 20);
 			//pose = ....
+          	pose = getPose(transform);
 
 			// TODO: Transform scan so it aligns with ego's actual pose and render that scan
+          	PointCloudT::Ptr transformed_scan (new PointCloudT);
+          	pcl::transformPointCloud (*cloudFiltered, *transformed_scan, transform);
 
 			viewer->removePointCloud("scan");
 			// TODO: Change `scanCloud` below to your transformed scan
-			renderPointCloud(viewer, scanCloud, "scan", Color(1,0,0) );
+			renderPointCloud(viewer, transformed_scan, "scan", Color(1,0,0) );
 
 			viewer->removeAllShapes();
 			drawCar(pose, 1,  Color(0,1,0), 0.35, viewer);
